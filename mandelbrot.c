@@ -4,11 +4,7 @@
 #include <math.h> // sin, sqrt, pow, etc
 
 
-int Width = 800, Height = 400;
-int Iterations = 10;
-Vector2 Position = { -0.5f, 0.f };
-//Vector2 Middle = { (float)Width, 1 };
-float Scale = 1;
+
 
 typedef struct c32 {
 	float r, i;
@@ -31,16 +27,27 @@ float map32(float Value, float ValMin, float ValMax, float MappedMin, float Mapp
 	return MappedMin + _scale * (Value - ValMin);
 }
 
+float Width = 600, Height = 400;
+int Iterations = 100;
+
 int main() {
-	InitWindow(Width, Height, "mandelbrot set");
+	float OffsetX = 0.f, OffsetY = 0.f;
+	float Scale = 1;
+	Vector2 Position = {-0.3f, 0.f};
+	InitWindow((int)Width, (int)Height, "mandelbrot set");
+	if (Width > Height) { // fixes the center in the middle of the screen, even if viewed from a rectangular screen
+		OffsetX = 0.5f * (Width - Height);
+	} else {
+		OffsetY = 0.5f * (Height - Width);
+	}
 	float Win = (float)(Width > Height) ? Height : Width;
 	while (!WindowShouldClose()) {
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
 		for (int i = 0; i < Width; i++) {
 			for (int j = 0; j < Height; j++) {
-				float x = map32(i, 0.0, Win, Position.x - Scale, Position.x + Scale);
-				float y = map32(j, 0.0, Win, Position.y - Scale, Position.y + Scale);
+				float x = map32(i, 0.0 + OffsetX, Win + OffsetX, Position.x - Scale, Position.x + Scale);
+				float y = map32(j, 0.0 + OffsetY, Win + OffsetY, Position.y - Scale, Position.y + Scale);
 				c32 Point = { x, y };
 				c32 ChangingPt = Point;
 				int Iteration = 0;
@@ -54,17 +61,15 @@ int main() {
 				if (c32_abs(ChangingPt) < 2) {
 					DrawPixel(i, j, BLACK);
 				} else {
-					float distDy = c32_abs(ChangingPt);
-					float distSt = c32_abs(Point);
-					float hue = fabs(distDy-distSt) * 255;
-					DrawPixel(i, j, ColorFromHSV(hue, 255, 255));
+					float scaled = 255 / Iterations * Iteration;
+					DrawPixel(i, j, ColorFromHSV(scaled, 255, 255));
 				}
 			}
 		}
+		
+		DrawRectangle(0, 0, 20, 20, BLUE);
 		EndDrawing();
-		if (IsMouseButtonPressed) {
-			Scale *= 0.9;
-		}
+		
 	}
 	return 0;
 }
