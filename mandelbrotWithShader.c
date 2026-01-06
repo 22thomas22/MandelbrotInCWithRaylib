@@ -117,6 +117,9 @@ int main() {
 
 	InitWindow((int)width, (int)height, "mandelbrot set");
 
+	//RenderTexture2D target = LoadRenderTexture(width, height);
+	//Shader shader = LoadShader(0, TextFormat("./shader.fs", GLSL_VERSION));
+
 	Image imageBuffer = GenImageColor((int)width, (int)height, BLACK);
 	Texture displayTexture = LoadTextureFromImage(imageBuffer);
 	
