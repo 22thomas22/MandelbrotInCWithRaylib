@@ -23,7 +23,7 @@ set(CMAKE_C_EXTENSIONS OFF)       # Optional: Disable compiler-specific extensio
 
 
 add_subdirectory(raylib)
-add_executable (FallingSand "mandelbrot.c" )
+add_executable (FallingSand "mandelbrotWithShader.c" )
 
 # Enforce C11 standard for this target
 set_target_properties(FallingSand PROPERTIES

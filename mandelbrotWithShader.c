@@ -97,97 +97,31 @@ static c32 recursePoint(int *Iteration, int _iterations, c32 Position) {
 }
 
 const float width = 600, height = 400;
-bool moveWindow = true;
 int main() {
-	// variables with p... are for pixel calculations, variables with g.. are mapped from complex plane, w... deals with the window
-	Vector2 gmiddle = { -0.3f, 0.f }; // use this to move the camera
-	float gscale = 1; // use this to zoom the camera
-	int iterations = 100;
-	Vector2 poffset = { 0.f, 0.f };
-	const Vector2 Vzero = { 0.f, 0.f };
-
-	Vector2 windowSize = (Vector2){ width, height };
-	Vector2 whalfWindowSize = (Vector2){ 0.5f * width, 0.5f * height };
-
-	Vector2 pmouse, gmouse = {0.f, 0.f};
-
-	Vector2Ref gscaleV = { &gscale, &gscale }; // for vector reference
-	float psquare = (float)(width > height) ? height : width; // ensures the screen never stretches the fractal
-	Vector2 psquareV = { psquare, psquare };
-
+	
 	InitWindow((int)width, (int)height, "mandelbrot set");
 
-	//RenderTexture2D target = LoadRenderTexture(width, height);
-	//Shader shader = LoadShader(0, TextFormat("./shader.fs", GLSL_VERSION));
-
-	Image imageBuffer = GenImageColor((int)width, (int)height, BLACK);
-	Texture displayTexture = LoadTextureFromImage(imageBuffer);
-	
-	if (width > height) { // fixes the center in the middle of the screen, even if viewed from a rectangular screen
-		poffset.x = 0.5f * (width - height);
-	} else {
-		poffset.y = 0.5f * (height - width);
-	}
+	RenderTexture2D target = LoadRenderTexture(width, height);
+	Shader shader = LoadShader(0, "./shader.glsl");
 	
 	while (!WindowShouldClose()) {
-		Vector2 wscreenMiddle = (Vector2){ GetMonitorWidth(0) * 0.5f, GetMonitorHeight(0) * 0.5f };
-		Vector2 windowOffset = V2_add(V2_sub(GetWindowPosition(), wscreenMiddle), whalfWindowSize);
-		pmouse = GetMousePosition();
-		
-		// precompute ingame bounds
-		Vector2 gtopLeft = V2_sub(gmiddle, V2fromRef(gscaleV)), gbottomRight = V2_add(gmiddle, V2fromRef(gscaleV));
-		
-		if (moveWindow) {
-			pmouse = V2_add(pmouse, windowOffset);
-		}
-		gmouse = V2_map(V2_sub(pmouse, poffset),
-			Vzero,		psquareV,
-			gtopLeft,	gbottomRight
-		);
-		
-		ClearBackground(RAYWHITE);
-		if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-			float scale = IsMouseButtonDown(MOUSE_BUTTON_LEFT) ? 0.9 : 1.1;
-			gmiddle = V2_lerp(gmouse, gmiddle, scale);
-			gscale *= scale;
-		}
-		
-		for (int i = 0; i < width; i++) {
-			for (int j = 0; j < height; j++) {
-				Vector2 plocV = { i, j };
-				if (moveWindow) {
-					plocV = V2_add(plocV, windowOffset);
-				}
-				// Convert pixels to complex coordinates on the plane.
-				Vector2 glocV = V2_map(V2_sub(plocV, poffset), // poffset pulls the square to the middle
-					Vzero,		psquareV,
-					gtopLeft,	gbottomRight
-				);
-				c32 glocC = { glocV.x, glocV.y };
-				int iteration = 0;
-				c32 gfinalPos = recursePoint(&iteration, iterations, glocC);
-				/*if (V2_distBetween(gmouse, glocV) < 0.01) {
-					ImageDrawPixel(&imageBuffer, i, j, RED);
-				} else */if (iteration == iterations) {
-					ImageDrawPixel(&imageBuffer, i, j, BLACK);
-				} else {
-					float scaled = 360.0 / (float)iterations * (float)iteration;
-					ImageDrawPixel(&imageBuffer, i, j, ColorFromHSV(scaled, 1, 1));
-				}
-			}
-		}
-		
-		UpdateTexture(displayTexture, imageBuffer.data);
-
+		BeginTextureMode(target);
+			ClearBackground(BLACK); // clear render texture
+			DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), BLACK);
+		EndTextureMode();
 		BeginDrawing();
-		DrawTexture(displayTexture, 0, 0, WHITE);
-		DrawFPS(10, 10);
+			ClearBackground(RAYWHITE); // clear screen background
+
+			BeginShaderMode(shader);
+				DrawTextureEx(target.texture, (Vector2) { 0.f, 0.f }, 0.0f, 1.0f, WHITE);
+			EndShaderMode();
+			DrawFPS(10, 10);
 		EndDrawing();
-		
 	}
-	UnloadImage(imageBuffer);
-	UnloadTexture(displayTexture);
-	// cleanup
+	
+	UnloadShader(shader);
+	UnloadRenderTexture(target);
+	
 	CloseWindow();
 	return 0;
 }
