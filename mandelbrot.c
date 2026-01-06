@@ -44,15 +44,25 @@ static Vector2 V2_map(Vector2 value, Vector2 valMin, Vector2 valMax, Vector2 map
 	};
 	return (Vector2) {
 		mappedMin.x + _scale.x * (value.x - valMin.x),
-			mappedMin.y + _scale.y * (value.y - valMin.y)
+		mappedMin.y + _scale.y * (value.y - valMin.y)
 	};
 }
+static float V2_distBetween(Vector2 a, Vector2 b) {
+	Vector2 diff = V2_sub(b, a);
+	return sqrtf(diff.x * diff.x + diff.y * diff.y);
+}
 // Hacky vector pointer to duplicate singular data
-typedef struct {
+typedef struct Vector2Ref {
 	const float *x, *y;
 } Vector2Ref;
 static Vector2 V2fromRef(Vector2Ref v){
 	return (Vector2) { *v.x, * v.y };
+}
+
+void V2_print(Vector2 v, bool addSpace) {
+	printf("(%f, %f)", v.x, v.y);
+	if (addSpace)
+		printf("\n");
 }
 // Complex
 typedef struct c32 {
@@ -86,49 +96,77 @@ static c32 recursePoint(int *Iteration, int _iterations, c32 Position) {
 	return PositionDynamic;
 }
 
-float Width = 600, Height = 400;
-Vector2 windowStart = {0.f, 0.f};
+const float width = 600, height = 400;
+bool moveWindow = true;
 int main() {
-	Vector2 position = { -0.3f, 0.f }; // use this to move the camera
-	float scale = 1; // use this to zoom the camera
-	int Iterations = 100;
-	Vector2 offset = { 0.f, 0.f }; // this is to re-center the display for rectangular screens.
+	// variables with p... are for pixel calculations, variables with g.. are mapped from complex plane, w... deals with the window
+	Vector2 gmiddle = { -0.3f, 0.f }; // use this to move the camera
+	float gscale = 1; // use this to zoom the camera
+	int iterations = 100;
+	Vector2 poffset = { 0.f, 0.f };
+	const Vector2 Vzero = { 0.f, 0.f };
 
-	Vector2Ref scaleV = { &scale, &scale }; // for vector reference
+	Vector2 windowSize = (Vector2){ width, height };
+	Vector2 whalfWindowSize = (Vector2){ 0.5f * width, 0.5f * height };
 
-	InitWindow((int)Width, (int)Height, "mandelbrot set");
+	Vector2 pmouse, gmouse = {0.f, 0.f};
 
-	Image imageBuffer = GenImageColor((int)Width, (int)Height, BLACK);
+	Vector2Ref gscaleV = { &gscale, &gscale }; // for vector reference
+	float psquare = (float)(width > height) ? height : width; // ensures the screen never stretches the fractal
+	Vector2 psquareV = { psquare, psquare };
+
+	InitWindow((int)width, (int)height, "mandelbrot set");
+
+	Image imageBuffer = GenImageColor((int)width, (int)height, BLACK);
 	Texture displayTexture = LoadTextureFromImage(imageBuffer);
 	
-	if (Width > Height) { // fixes the center in the middle of the screen, even if viewed from a rectangular screen
-		offset.x = 0.5f * (Width - Height);
+	if (width > height) { // fixes the center in the middle of the screen, even if viewed from a rectangular screen
+		poffset.x = 0.5f * (width - height);
 	} else {
-		offset.y = 0.5f * (Height - Width);
+		poffset.y = 0.5f * (height - width);
 	}
-
-	float win = (float)(Width > Height) ? Height : Width;
+	
 	while (!WindowShouldClose()) {
-		ClearBackground(RAYWHITE);
-		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-			Vector2 scaleV = { scale, scale };
-			Vector2 mouseProjectedPosition = V2_map(GetMousePosition(), windowStart, GetWindowPosition(), V2_sub(position, scaleV), V2_add(position, scaleV));
-			position = V2_lerp(position, GetMousePosition(), 0.1);
-			
+		Vector2 wscreenMiddle = (Vector2){ GetMonitorWidth(0) * 0.5f, GetMonitorHeight(0) * 0.5f };
+		Vector2 windowOffset = V2_add(V2_sub(GetWindowPosition(), wscreenMiddle), whalfWindowSize);
+		pmouse = GetMousePosition();
+		if (moveWindow) {
+			pmouse = V2_add(pmouse, windowOffset);
 		}
-		for (int i = 0; i < Width; i++) {
-			for (int j = 0; j < Height; j++) {
+		gmouse = V2_map(V2_sub(pmouse, poffset),
+			Vzero, psquareV,
+			V2_sub(gmiddle, V2fromRef(gscaleV)),
+			V2_add(gmiddle, V2fromRef(gscaleV))
+		);
+		
+		ClearBackground(RAYWHITE);
+		if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+			float scale = IsMouseButtonDown(MOUSE_BUTTON_LEFT) ? 0.9 : 1.1;
+			gmiddle = V2_lerp(gmouse, gmiddle, scale);
+			gscale *= scale;
+		}
+		for (int i = 0; i < width; i++) {
+			for (int j = 0; j < height; j++) {
+				Vector2 plocV = { i, j };
+				if (moveWindow) {
+					plocV = V2_add(plocV, windowOffset);
+				}
 				// Convert pixels to complex coordinates on the plane.
-				float x = map32(i, offset.x, win + offset.x, position.x - scale, position.x + scale);
-				float y = map32(j, offset.y, win + offset.y, position.y - scale, position.y + scale);
-				c32 point = { x, y };
+				Vector2 glocV = V2_map(V2_sub(plocV, poffset), // poffset pulls the square to the middle
+					Vzero, // top left pixel space
+					psquareV, // bottom right pixel space (square)
+					V2_sub(gmiddle, V2fromRef(gscaleV)), // top left game space
+					V2_add(gmiddle, V2fromRef(gscaleV)) // bottom right game space
+				);
+				c32 glocC = { glocV.x, glocV.y };
 				int Iteration = 0;
-				recursePoint(&Iteration, Iterations, point);
-
-				if (Iteration == Iterations) {
+				c32 gfinalPos = recursePoint(&Iteration, iterations, glocC);
+				/*if (V2_distBetween(gmouse, glocV) < 0.01) {
+					ImageDrawPixel(&imageBuffer, i, j, RED);
+				} else */if (Iteration == iterations) {
 					ImageDrawPixel(&imageBuffer, i, j, BLACK);
 				} else {
-					float scaled = 255.0 / Iterations * Iteration;
+					float scaled = 255.0 / iterations * Iteration;
 					ImageDrawPixel(&imageBuffer, i, j, ColorFromHSV(scaled, 255, 255));
 				}
 			}
